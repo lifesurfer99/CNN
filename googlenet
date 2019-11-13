@@ -1,0 +1,243 @@
+from tensorflow.examples.tutorials.mnist import input_data
+from tensorflow.keras.datasets.cifar10 import load_data
+from keras.layers import Input, Conv2D, MaxPooling2D, AveragePooling2D
+import tensorflow as tf
+import os
+import numpy as np
+from keras.layers import Input
+from keras.datasets import cifar10
+from tensorflow.nn import space_to_depth
+import os
+import tensorflow.keras
+import cv2
+from keras.datasets import mnist
+from keras import backend as K
+from keras.models import Sequential
+from keras.layers import Dense, Dropout, Activation
+from keras.optimizers import SGD
+from keras.utils import to_categorical
+import keras
+import keras.utils
+from keras import utils as np_utils
+from keras.layers.merge import concatenate
+
+os.environ['TF_KERAS'] = '1'
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
+
+#x_train = Upscaling_Data(x_train, input_shape)
+#x_test = Upscaling_Data(x_test, input_shape)
+
+#x_train = np.float32(x_train / 255.)
+#x_test = np.float32(x_test / 255.)
+
+#y_train = to_categorical(y_train, num_classes=10)
+#y_test = to_categorical(y_test, num_classes=10)
+
+
+#mnist = input_data.read_data_sets("MNIST_data/", reshape=False, one_hot=True)
+#x_train, y_train = mnist.train.images, mnist.train.labels
+#x_valid, y_valid = mnist.validation.images, mnist.validation.labels
+#x_test, y_test = mnist.test.images, mnist.test.labels
+
+
+#print("Image Shape: {}".format(X_train[0].shape))
+#print("Training Set:   {} samples".format(len(X_train)))
+#print("Validation Set: {} samples".format(len(X_valid)))
+#print("Test Set:       {} samples".format(len(X_test)))
+
+
+def conv2d(input, filters, kernel_size, strides=1, activation=tf.nn.relu, padding='SAME', name='conv'):
+    with tf.variable_scope(name, reuse=False):
+        out = Conv2D(filters=filters, kernel_size=kernel_size, strides=strides, padding=padding, 
+                     activation=activation)(input)
+    return out
+
+def dense(input, unit, activation=tf.nn.relu, name='dense'):
+    with tf.variable_scope(name, reuse=True):
+        out = tf.layers.dense(input, unit, activation=activation, name=name)
+    return out
+
+def maxpool(input, k, s, name='pool'):
+    out = MaxPooling2D(pool_size=k, strides=s, padding='SAME')(input)
+    return out
+
+def inception_block(input, conv11_size, conv33_rsize, conv33_size, conv55_rsize, conv55_size, pool_size, name='incept'):
+    ### Assignment ###
+    ### Use conv2d and max_pool function
+
+    conv_1x1 = conv2d(input, filters=conv11_size, kernel_size=(1, 1))
+  
+    conv_3x3_reduce = conv2d(input, filters=conv33_rsize, kernel_size=(1, 1))
+
+    conv_3x3 = conv2d(input, filters=conv33_size, kernel_size=(3,3))
+
+    conv_5x5_reduce = conv2d(input, filters=conv55_rsize, kernel_size=(1, 1))
+
+    conv_5x5 = conv2d(input, filters=conv55_size, kernel_size=(3,3))
+
+    maxpool1 = maxpool(input, (3, 3), (1, 1))
+
+    maxpool_proj = conv2d(input=maxpool1, filters=pool_size, kernel_size=(1, 1))
+
+    inception_output = concatenate([conv_1x1, conv_3x3, conv_5x5, maxpool_proj], axis=3)  # use tf as backend
+
+    return inception_output
+
+    #with tf.variable_scope("conv11_size"):
+    # conv11 = conv2d( inputs, conv11_size, [ 1, 1 ] )
+    #with tf.variable_scope("conv33_size"):
+    #  conv33_11 = layers.conv2d( inputs, conv33_rsize, [1, 1] )
+    #  conv33 = layers.conv2d( conv33_11, conv33_size, [3,3] )
+    #with tf.variable_scope("conv55_size"):
+    #conv55_11 = layers.conv2d( inputs, conv55_rsize, [1, 1] )
+    #conv55 = layers.conv2d ( cont55_11, conv55_size, [5, 5] )
+    #return tf.concat([conv11, conv33, pool_size], 3)
+def googlenet(x):
+    input = x
+    input = Input(shape=(224, 224, 1))
+    #print("input shpae")
+    #print(input.shape)
+    ### Use cpmv2d, max_pool, inception_block, dens and dropout function
+    #print("conv1_7x7 shape")
+    conv1_7x7_s2 = conv2d(input, 64, 7, strides=(2,2), padding='same')
+    #print(conv1_7x7_s2.shape)
+    #print("maxpool1_3x3 shape")
+    maxpool1_3x3_s2 = maxpool(input=conv1_7x7_s2, k=(3,3), s=(2,2))
+    #print(maxpool1_3x3_s2.shape)
+    conv2_3x3_reduce = conv2d(input=maxpool1_3x3_s2, filters=64, kernel_size=(1, 1), padding='same', activation='relu')
+    #print(3)
+
+    conv2_3x3 = conv2d(conv2_3x3_reduce, filters=192, kernel_size=(3, 3))
+
+    maxpool2_3x3_s2 = maxpool(conv2_3x3, (3, 3), (2,2))
+
+    inception_3a = inception_block(input=maxpool2_3x3_s2, conv11_size=64, conv33_rsize=96, conv33_size=128, conv55_rsize=16, conv55_size=32, pool_size=32)
+
+    inception_3b = inception_block(input=inception_3a, conv11_size=128, conv33_rsize=128, conv33_size=192, conv55_rsize=32, conv55_size=96,pool_size=64)
+
+    maxpool3_3x3_s2 = maxpool(inception_3b, (3,3), (2,2))
+
+    inception_4a = inception_block(input=maxpool3_3x3_s2, conv11_size=192, conv33_rsize=96, conv33_size=208, conv55_rsize=16, conv55_size=48, pool_size=64)
+
+    inception_4b = inception_block(input=inception_4a, conv11_size=160, conv33_rsize=112, conv33_size=224, conv55_rsize=24, conv55_size=64, pool_size=64)
+
+    inception_4c = inception_block(input=inception_4b, conv11_size=128, conv33_rsize=128, conv33_size=256, conv55_rsize=24, conv55_size=64, pool_size=64)
+
+    inception_4d = inception_block(input=inception_4c, conv11_size=112, conv33_rsize=144, conv33_size=288, conv55_rsize=32, conv55_size=64, pool_size=64)
+
+    inception_4e = inception_block(input=inception_4d,  conv11_size=256, conv33_rsize=160, conv33_size=320, conv55_rsize=32, conv55_size=128, pool_size=128)
+
+    maxpool4_3x3_s2 = maxpool(inception_4e, k=3, s=2)
+
+    inception_5a = inception_block(input=maxpool4_3x3_s2,  conv11_size=256, conv33_rsize=160, conv33_size=320, conv55_rsize=32, conv55_size=128, pool_size=128)
+
+    inception_5b = inception_block(input=inception_5a, conv11_size=384, conv33_rsize=192, conv33_size=384, conv55_rsize=48, conv55_size=128, pool_size=128)
+
+    averagepool1_7x7_s1 = AveragePooling2D(pool_size=(7, 7), strides=(7, 7), padding='same')(inception_5b)
+
+    drop1 = Dropout(rate=0.4)(averagepool1_7x7_s1)
+
+    linear = Dense(input=keras.layers.core.Flatten(drop1), units=1000, activation='softmax')
+    dense2 = linear
+
+    return dense2
+
+epochs = 100
+learning_rate = 0.00001
+batch_size = 64
+dropout = 0.8
+num_classes = 10
+
+# input image dimensions
+#img_rows, img_cols = 28, 28
+
+#input_shape = (224, 224, 3)
+#(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+
+#x_train = x_train.resize(input_shape)
+#x_test =  x_test.resize(input_shape)
+
+#x_train = np.float32(x_train / 255.)
+#x_test = np.float32(x_test / 255.)
+
+#y_train = to_categorical(y_train, num_classes=10)
+#y_test = to_categorical(y_test, num_classes=10)
+
+#model_input = Input( shape=input_shape )
+# tf Graph input
+#x = tf.placeholder(tf.float32, [None, 224, 224, 1])
+#y = tf.placeholder(tf.int32, [None, 10])
+# y_one_hot = tf.squeeze(tf.one_hot(y, 10), axis=1)
+
+# input image dimensions
+img_rows, img_cols = 28, 28
+
+# the data, split between train and test sets
+(x_train, y_train), (x_test, y_test) = mnist.load_data()
+x_train = x_train[:1000]
+x_test = x_test[:1000]
+y_train = y_train[:1000]
+y_test = y_test[:1000]
+
+print(x_train.shape)
+print(x_test.shape)
+
+#if K.image_data_format() == 'channels_first':
+#  x_train = x_train.reshape(x_train.shape[0], 1, img_rows, img_cols)
+#  x_test = x_test.reshape(x_test.shape[0], 1, img_rows, img_cols)
+#  input_shape = (1, img_rows, img_cols)
+#else:
+#  x_train = x_train.reshape(x_train.shape[0], img_rows, img_cols, 1)
+#  x_test = x_test.reshape(x_test.shape[0], img_rows, img_cols, 1)
+#  input_shape = (img_rows, img_cols, 1)
+
+x_train = x_train.astype('float32')
+x_test = x_test.astype('float32')
+x_train /= 255
+x_test /= 255
+_x_train = []
+_x_test = []
+
+for x_tr in x_train:
+  _x_train.append(cv2.resize(x_tr, (224, 224)))
+for x_te in x_test:
+  _x_test.append(cv2.resize(x_te, (224, 224)))
+print(np.array(_x_train).shape)
+_x_train = np.array(_x_train).reshape(-1, 224, 224, 1)
+_x_test = np.array(_x_test).reshape(-1, 224, 224, 1)
+print('x_train shape:', _x_train.shape)
+print(_x_train.shape[0], 'train samples')
+print(x_test.shape[0], 'test samples')
+
+# convert class vectors to binary class matrices
+y_train = keras.utils.to_categorical(y_train, num_classes)
+y_test = keras.utils.to_categorical(y_test, num_classes)
+
+
+keep_prob = tf.placeholder(tf.float32, [])  # dropout (keep probability)
+#x_resize = tf.image.resize_images(x, [64, 64])
+# Construct model
+
+#model_input = Input( shape=input_shape )
+model = googlenet(_x_test)
+saver = tf.train.Saver()
+
+
+print('Training...')
+model.compile(loss=keras.losses.categorical_crossentropy,
+                optimizer=keras.optimizers.Adadelta(),
+                metrics=['accuracy'])
+
+model.fit(_x_test, y_train,
+              batch_size=batch_size,
+              epochs=epochs,
+              verbose=1,
+              )
+score = model.evaluate(_x_test, y_test, verbose=0)
+print('Test loss:', score[0])
+print('Test accuracy:', score[1])
+
+print("Optimization Finished!")
+saver.save(sess, './goolgenet')
